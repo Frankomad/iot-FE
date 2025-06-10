@@ -47,31 +47,57 @@ self.addEventListener('activate', (event) => {
 
 // Push event - handle push notifications
 self.addEventListener('push', (event) => {
-  const options = {
-    body: event.data ? event.data.text() : 'Sensor alert!',
+  let notificationData = {
+    title: 'Sensor Monitor',
+    body: 'Sensor alert!',
     icon: '/icon-192x192.png',
-    badge: '/icon-192x192.png',
-    vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),
-      primaryKey: '2'
-    },
-    actions: [
-      {
-        action: 'explore',
-        title: 'View Details',
-        icon: '/icon-192x192.png'
-      },
-      {
-        action: 'close',
-        title: 'Close',
-        icon: '/icon-192x192.png'
-      }
-    ]
+    }
   };
 
+  // Parse JSON payload if available
+  if (event.data) {
+    try {
+      const payload = event.data.json();
+      notificationData = {
+        title: payload.title || 'Sensor Monitor',
+        body: payload.body || 'Sensor alert!',
+        icon: payload.icon || '/icon-192x192.png',
+        badge: '/icon-192x192.png',
+        vibrate: [100, 50, 100],
+        data: {
+          ...payload.data,
+          dateOfArrival: Date.now(),
+        },
+        actions: [
+          {
+            action: 'explore',
+            title: 'View Details',
+            icon: '/icon-192x192.png'
+          },
+          {
+            action: 'close',
+            title: 'Close',
+            icon: '/icon-192x192.png'
+          }
+        ]
+      };
+    } catch (e) {
+      // Fallback to text if JSON parsing fails
+      notificationData.body = event.data.text();
+    }
+  }
+
   event.waitUntil(
-    self.registration.showNotification('Sensor Monitor', options)
+    self.registration.showNotification(notificationData.title, {
+      body: notificationData.body,
+      icon: notificationData.icon,
+      badge: notificationData.badge,
+      vibrate: notificationData.vibrate,
+      data: notificationData.data,
+      actions: notificationData.actions
+    })
   );
 });
 
