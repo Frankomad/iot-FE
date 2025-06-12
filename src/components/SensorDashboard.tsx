@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Bell, BellOff, Volume2, RefreshCw } from 'lucide-react';
-import { getAllSensors, getSensorReadings, getSensorAverage, getAllThresholds } from '@/lib/api';
+import { getAllSensors, getSensorReadings, getSensorAverage, getThresholdsForSensor } from '@/lib/api';
 import { Sensor, SensorReading, Threshold } from '@/lib/api';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from '@/hooks/use-toast';
@@ -38,12 +38,12 @@ const SensorDashboard = () => {
 
   useEffect(() => {
     fetchSensors();
-    fetchThresholds();
   }, []);
 
   useEffect(() => {
     if (selectedSensor) {
       fetchSensorReadings(selectedSensor);
+      fetchThresholdsForSensor(selectedSensor);
       if (selectedTimeframe) {
         fetchAverageReading();
       }
@@ -96,11 +96,9 @@ const SensorDashboard = () => {
     }
   };
 
-  const fetchThresholds = async () => {
+  const fetchThresholdsForSensor = async (sensorId: number) => {
     try {
-      const data = await getAllThresholds();
-      
-      // Convert array to object for easier management
+      const data = await getThresholdsForSensor(sensorId);
       const thresholdMap: { [key: string]: number } = {};
       if (Array.isArray(data)) {
         data.forEach((threshold: Threshold) => {
@@ -109,16 +107,14 @@ const SensorDashboard = () => {
           }
         });
       }
-      
-      // Set thresholds with fallback to defaults
       setThresholds({
         low: thresholdMap.low || 40,
         medium: thresholdMap.medium || 60,
         high: thresholdMap.high || 80
       });
     } catch (error) {
-      console.error('Failed to fetch thresholds:', error);
-      // Keep default values if fetching fails
+      console.error('Failed to fetch thresholds for sensor:', error);
+      setThresholds({ low: 40, medium: 60, high: 80 });
     }
   };
 
@@ -218,7 +214,6 @@ const SensorDashboard = () => {
           )}
           <Button onClick={() => {
             fetchSensors();
-            fetchThresholds();
             if (selectedSensor) {
               fetchSensorReadings(selectedSensor);
             }
