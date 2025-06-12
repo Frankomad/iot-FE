@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,59 +5,56 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Volume2, Save } from 'lucide-react';
-import { getAllThresholds, createThreshold, Threshold } from '@/lib/api';
+import { getAllSensors, getThresholdsForSensor, createThreshold, Threshold, Sensor } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
 const ThresholdManager = () => {
-  const [thresholds, setThresholds] = useState<{ [key: string]: number }>({
-    lowThreshold: 40,
-    mediumThreshold: 60,
-    highThreshold: 80
-  });
+  const [sensors, setSensors] = useState<Sensor[]>([]);
+  const [selectedSensorId, setSelectedSensorId] = useState<number | null>(null);
+  const [thresholds, setThresholds] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchThresholds();
+    fetchSensors();
   }, []);
 
-  const fetchThresholds = async () => {
+  useEffect(() => {
+    if (selectedSensorId !== null) {
+      fetchThresholds(selectedSensorId);
+    }
+  }, [selectedSensorId]);
+
+  const fetchSensors = async () => {
     try {
-      const data = await getAllThresholds();
-      
-      // Convert array to object for easier management
-      const thresholdMap: { [key: string]: number } = {};
-      if (Array.isArray(data)) {
-        data.forEach((threshold: Threshold) => {
-          if (threshold && typeof threshold.type === 'string' && typeof threshold.level === 'number') {
-            thresholdMap[threshold.type] = threshold.level;
-          }
-        });
-      }
-      
-      // Ensure we have all three types with default values
-      setThresholds({
-        lowThreshold: thresholdMap.low || 40,
-        mediumThreshold: thresholdMap.medium || 60,
-        highThreshold: thresholdMap.high || 80
-      });
-      
-      // Success - no error toast needed
+      const data = await getAllSensors();
+      setSensors(data);
+      if (data.length > 0) setSelectedSensorId(data[0].id);
     } catch (error) {
-      console.error('Failed to fetch thresholds:', error);
-      
-      // Set default values when there's an actual error
-      setThresholds({
-        lowThreshold: 40,
-        mediumThreshold: 60,
-        highThreshold: 80
-      });
-      
-      // Show error toast only for actual API/network errors
       toast({
-        title: "Error",
-        description: "Failed to fetch thresholds. Using default values.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to fetch sensors.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchThresholds = async (sensorId: number) => {
+    setLoading(true);
+    try {
+      const data = await getThresholdsForSensor(sensorId);
+      const thresholdMap: { [key: string]: number } = {};
+      data.forEach((threshold: Threshold) => {
+        thresholdMap[threshold.type] = threshold.level;
+      });
+      setThresholds(thresholdMap);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch thresholds.',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -68,33 +64,31 @@ const ThresholdManager = () => {
   const handleThresholdChange = (type: string, value: string) => {
     const numValue = parseInt(value);
     if (!isNaN(numValue) && numValue >= 0 && numValue <= 120) {
-      setThresholds(prev => ({
-        ...prev,
-        [type]: numValue
-      }));
+      setThresholds(prev => ({ ...prev, [type]: numValue }));
     }
   };
 
   const saveThresholds = async () => {
+    if (selectedSensorId === null) return;
     setSaving(true);
+    const selectedSensor = sensors.find(s => s.id === selectedSensorId);
+    if (!selectedSensor) return;
     try {
-      // Save all three thresholds
       await Promise.all([
-        createThreshold('low', thresholds.lowThreshold),
-        createThreshold('medium', thresholds.mediumThreshold),
-        createThreshold('high', thresholds.highThreshold)
+        createThreshold('low', thresholds.low || 40, selectedSensor.hwid),
+        createThreshold('medium', thresholds.medium || 60, selectedSensor.hwid),
+        createThreshold('high', thresholds.high || 80, selectedSensor.hwid),
       ]);
-      
       toast({
-        title: "Success",
-        description: "Sound level thresholds updated successfully.",
+        title: 'Success',
+        description: 'Sound level thresholds updated successfully.',
       });
+      fetchThresholds(selectedSensorId); // Refresh after save
     } catch (error) {
-      console.error('Failed to save thresholds:', error);
       toast({
-        title: "Error",
-        description: "Failed to save thresholds.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to save thresholds.',
+        variant: 'destructive',
       });
     } finally {
       setSaving(false);
@@ -103,27 +97,19 @@ const ThresholdManager = () => {
 
   const getThresholdColor = (type: string) => {
     switch (type) {
-      case 'lowThreshold':
-        return 'default';
-      case 'mediumThreshold':
-        return 'secondary';
-      case 'highThreshold':
-        return 'destructive';
-      default:
-        return 'outline';
+      case 'low': return 'default';
+      case 'medium': return 'secondary';
+      case 'high': return 'destructive';
+      default: return 'outline';
     }
   };
 
   const getThresholdDescription = (type: string, level: number) => {
     switch (type) {
-      case 'lowThreshold':
-        return `Alert when sound exceeds ${level} dB (quiet environment threshold)`;
-      case 'mediumThreshold':
-        return `Alert when sound exceeds ${level} dB (normal environment threshold)`;
-      case 'highThreshold':
-        return `Alert when sound exceeds ${level} dB (loud environment threshold)`;
-      default:
-        return `Alert when sound level exceeds ${level} dB`;
+      case 'low': return `Alert when sound exceeds ${level} dB (quiet environment threshold)`;
+      case 'medium': return `Alert when sound exceeds ${level} dB (normal environment threshold)`;
+      case 'high': return `Alert when sound exceeds ${level} dB (loud environment threshold)`;
+      default: return `Alert when sound level exceeds ${level} dB`;
     }
   };
 
@@ -145,6 +131,27 @@ const ThresholdManager = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="mb-4">
+            <Label htmlFor="sensor-select">Select Sensor:</Label>
+            <select
+              id="sensor-select"
+              className="block w-full mt-1 p-2 border rounded"
+              value={selectedSensorId ?? ''}
+              onChange={e => setSelectedSensorId(Number(e.target.value))}
+            >
+              {sensors.map(sensor => (
+                <option key={sensor.id} value={sensor.id}>
+                  {sensor.hwid} {sensor.location ? `(${sensor.location})` : ''}
+                </option>
+              ))}
+            </select>
+            {selectedSensorId !== null && (
+              <div className="mt-2 text-sm text-muted-foreground">
+                <strong>Location:</strong> {sensors.find(s => s.id === selectedSensorId)?.location || 'N/A'}
+              </div>
+            )}
+          </div>
+
           <div className="bg-blue-50 p-4 rounded-lg">
             <h4 className="font-semibold text-blue-900 mb-2">Sound Level Reference:</h4>
             <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
@@ -158,7 +165,7 @@ const ThresholdManager = () => {
           </div>
 
           <div className="space-y-4">
-            {Object.entries(thresholds).map(([type, level]) => (
+            {['low', 'medium', 'high'].map(type => (
               <div key={type} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center space-x-4">
                   <Badge variant={getThresholdColor(type)}>
@@ -169,7 +176,7 @@ const ThresholdManager = () => {
                       {type.charAt(0).toUpperCase() + type.slice(1)} Threshold
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {getThresholdDescription(type, level)}
+                      {getThresholdDescription(type, thresholds[type] || 0)}
                     </p>
                   </div>
                 </div>
@@ -180,8 +187,8 @@ const ThresholdManager = () => {
                   <Input
                     id={`${type}-threshold`}
                     type="number"
-                    value={level}
-                    onChange={(e) => handleThresholdChange(type, e.target.value)}
+                    value={thresholds[type] || ''}
+                    onChange={e => handleThresholdChange(type, e.target.value)}
                     min="0"
                     max="120"
                     className="w-20"

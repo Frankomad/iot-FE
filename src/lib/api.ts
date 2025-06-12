@@ -1,9 +1,9 @@
-
 const API_BASE = 'http://localhost:8000'; // Replace with your actual API endpoint
 
 export interface Sensor {
   id: number;
   hwid: string;
+  location?: string;
 }
 
 export interface SensorReading {
@@ -54,30 +54,26 @@ export const getAllThresholds = async (): Promise<Threshold[]> => {
   return response.json();
 };
 
-export const createThreshold = async (type: string, level: number): Promise<Threshold> => {
+export const getThresholdsForSensor = async (sensorId: number): Promise<Threshold[]> => {
+  const response = await fetch(`${API_BASE}/api/v1/threshold/${sensorId}`);
+  if (!response.ok) throw new Error('Failed to fetch thresholds for sensor');
+  return response.json();
+};
+
+export const createThreshold = async (type: string, level: number, sensorHwid: string): Promise<Threshold> => {
   const response = await fetch(`${API_BASE}/api/v1/threshold`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ type, level }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, level, sensorHwid }),
   });
-  
-  if (!response.ok) {
-    throw new Error('Failed to create threshold');
-  }
-  
+  if (!response.ok) throw new Error('Failed to create threshold');
   return response.json();
 };
 
 // Sensor API
 export const getAllSensors = async (): Promise<Sensor[]> => {
   const response = await fetch(`${API_BASE}/api/v1/sensor/all`);
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch sensors');
-  }
-  
+  if (!response.ok) throw new Error('Failed to fetch sensors');
   return response.json();
 };
 

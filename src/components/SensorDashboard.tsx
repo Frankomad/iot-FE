@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -251,6 +250,9 @@ const SensorDashboard = () => {
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">
                     {sensor.hwid}
+                    {sensor.location && (
+                      <span className="ml-2 text-xs text-muted-foreground">({sensor.location})</span>
+                    )}
                   </CardTitle>
                   <Badge variant={selectedSensor === sensor.id ? "default" : "outline"}>
                     {selectedSensor === sensor.id ? 'Selected' : 'Available'}
